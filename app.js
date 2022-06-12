@@ -3,7 +3,7 @@ const morgan = require('morgan');
 const dotenv = require('dotenv');
 const { Op } = require('sequelize');
 const jwt = require('jsonwebtoken');
-const { User } = require('./models');
+const { User, Posts } = require('./models');
 const authMiddleware = require('./middlewares/auth-middleware');
 
 dotenv.config();
@@ -94,6 +94,110 @@ router.post('/login', async (req, res) => {
         token,
     });
 });
+
+// 전체 게시글 목록 조회 API
+router.get("/post", async (req, res) => {
+
+    try {
+        console.log("게시글 전체 목록 조회 api");
+        const posts = await Posts.findAll({
+            order:[['createdAt', 'DESC']]
+        });
+        res.send({ posts });
+    } catch(error) {
+        console.log(error);
+    }
+});
+
+// 게시글 작성 API
+router.post("/post", authMiddleware, async (req, res) => {
+    try{
+        console.log("게시판 작성 api");
+        // if(req.cookies.user_cookie) {
+        //     console.log("쿠기 있지롱");
+        // }
+        const { userId } = res.locals.user;
+        console.log(userId);
+        const { title, content, image, layout } = req.body;
+        // db 저장
+        await Posts.create({ title, content, image, userId, layout });
+
+        res.send({ msg: "게시글 작성이 완료되었습나다." });
+    } catch(error) {
+        console.log(error);
+    }
+});
+
+// 게시글 수정 API
+router.put('/post/:postId', authMiddleware, async (req, res) => {
+    const { userId } = res.locals.user;
+    const { postId } = req.params;
+    const { title, content, imaage, layout } = req.body;
+
+    const existsPost = await Posts.findOne({
+        where: {
+            postId,
+        },
+    });
+
+    // 게시글 작성자만 수정 할 수 있다
+    if(existsPost.userId != userId) {
+        res.send({
+            errorMessage: "게시글 작성자만 수정할 수 없습니다."
+        })
+        return;
+    }
+
+    if (existsPost) {
+        existsPost.title = title;
+        existsPost.content = content;
+        existsPost.imaage = imaage;
+        existsPost.layout = layout;
+        await existsPost.save();
+    } 
+
+    res.send({
+        success: true
+    });
+});
+
+// 게시글 삭제
+router.delete('/post/:postId', authMiddleware, async (req, res) => {
+    const { userId, admin } = res.locals.user;
+    console.log(admin);
+    const { postId } = req.params;
+
+    const existsPost = await Posts.findOne({
+        where: {
+            postId,
+        },
+    });
+
+    // 관리자 권한을 가진 사람만 삭제 할 수 있다.
+    if(admin == true) {
+        await existsPost.destroy();
+        res.send({
+            success: true
+        });
+    }
+
+    // 게시글 작성자만 삭제 할 수 있다.
+    if(existsPost.userId != userId) {
+        res.send({
+            errorMessage: "게시글 작성자만 삭제할 수 없습니다."
+        })
+        return;
+    }
+
+    if (existsPost) {
+        await existsPost.destroy();
+        res.send({
+            success: true
+        });
+    }
+});
+
+
 
 
 app.use(morgan('dev'));
