@@ -3,7 +3,7 @@ const morgan = require('morgan');
 const dotenv = require('dotenv');
 const { Op } = require('sequelize');
 const jwt = require('jsonwebtoken');
-const { User, Posts } = require('./models');
+const { User, Posts, Like } = require('./models');
 const authMiddleware = require('./middlewares/auth-middleware');
 
 dotenv.config();
@@ -128,6 +128,51 @@ router.post("/post", authMiddleware, async (req, res) => {
     }
 });
 
+// 게시글 상세 조회 API
+router.get("/post/:postId", authMiddleware, async (req, res) => {
+    const { postId } = req.params;
+    const { userId } = res.locals.user;
+
+    const existsPost = await Posts.findOne({
+        where: {
+            postId,
+        },
+    });
+
+    const existsLike = await Like.findOne({
+        where: {
+            userId,
+            postId,
+        },
+    });
+
+    if(!existsLike) {
+        // 좋아요 초기값 저장
+        await Like.create({
+            userId,
+            postId,
+            done
+        });
+    }
+
+    const countLike = await Like.findAndCountAll({
+        where: {
+            postId
+        }
+    });
+    console.log(countLike);
+
+    res.send({
+        existsPost,
+        likeCount : countLike.count,
+        likeByMe : existsLike.done
+    });
+
+});
+
+
+
+
 // 게시글 수정 API
 router.put('/post/:postId', authMiddleware, async (req, res) => {
     const { userId } = res.locals.user;
@@ -196,6 +241,44 @@ router.delete('/post/:postId', authMiddleware, async (req, res) => {
         });
     }
 });
+
+
+// 게시글 좋아요 api
+router.get('/post/:postId/like', authMiddleware, async (req, res) => {
+    console.log("게시글 좋아요 api");
+    const { userId } = res.locals.user;
+    const { postId } = req.params;
+    const { done } = req.body;
+
+    const existsLike = await Like.findOne({
+        where: {
+            userId,
+            postId,
+        },
+    });
+
+    // 좋아요가 저장되있는 경우
+    if (existsLike) {
+        if(existsLike.done == true) {
+            existsLike.done = false;
+            await existsLike.save();
+        }else {
+            existsLike.done = true;
+            await existsLike.save();
+        }
+    } else {
+        // 좋아요 저장 안되있는 경우
+        await Like.create({
+            userId,
+            postId,
+            done
+        });
+    }
+    res.send({
+        success: true
+    });
+});
+
 
 
 
