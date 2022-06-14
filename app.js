@@ -287,18 +287,9 @@ router.delete('/post/:postId', authMiddleware, async (req, res) => {
             },
         });
 
-        // const imageUrl = existsPost.image;
-        // 관리자 권한을 가진 사람만 삭제 할 수 있다.
+        // 관리자 권한을 가진 사람만 삭제 할 수 있다.s
         if(admin == true) {
-            // try {
 
-            //     console.log("여기");
-            //     fs.unlinkSync("/uploads" + imageUrl);
-            //     console.log("image delete");
-
-            // } catch(error) {
-            //     console.log(error);
-            // }
             fs.unlinkSync("uploads/" + existsPost.image);
             console.log("image delete");
             await existsPost.destroy();
@@ -385,7 +376,7 @@ app.use(express.static('uploads'));
 app.use(morgan('dev'));
 app.use(express.json());
 app.use('/api', express.urlencoded({ extended: false }), router);
-app.listen(8080, () => {
+app.listen(3000, () => {
     console.log('서버가 요청을 받을 준비가 됐어요');
 });
 
