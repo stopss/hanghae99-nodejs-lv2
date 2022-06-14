@@ -289,10 +289,14 @@ router.delete('/post/:postId', authMiddleware, async (req, res) => {
 
         // 관리자 권한을 가진 사람만 삭제 할 수 있다.s
         if(admin == true) {
-
             fs.unlinkSync("uploads/" + existsPost.image);
             console.log("image delete");
             await existsPost.destroy();
+            await Like.destroy({
+                where: {
+                    postId,
+                }
+            });
             res.status(200).send({
                 result: {
                     success: true,
@@ -305,7 +309,7 @@ router.delete('/post/:postId', authMiddleware, async (req, res) => {
             res.status(200).send({
                 result: {
                     success: false,
-                    errorMessage: "게시글 작성자만 삭제할 수 없습니다."
+                    errorMessage: "게시글 작성자만 삭제할 수 있습니다."
                 }
                 
             })
@@ -313,9 +317,11 @@ router.delete('/post/:postId', authMiddleware, async (req, res) => {
         }
 
         if (existsPost) {
-            await existsPost.destroy();
             fs.unlinkSync("uploads/" + existsPost.image);
             console.log("image delete");
+            await existsPost.destroy();
+            await existsLike.destroy();
+            
             res.status(200).send({
                 result: {
                     success: true,
