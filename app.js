@@ -1,10 +1,15 @@
 const express = require('express');
+const multer = require('multer');
+const path = require('path');
+const cors = require('cors');
+const fs = require('fs');
 const morgan = require('morgan');
 const dotenv = require('dotenv');
 const { Op } = require('sequelize');
 const jwt = require('jsonwebtoken');
 const { User, Posts, Like } = require('./models');
 const authMiddleware = require('./middlewares/auth-middleware');
+const { upload } = require('./middlewares/multer-middleware');
 
 dotenv.config();
 const app = express();
@@ -13,6 +18,8 @@ const router = express.Router();
 router.get('/', (req, res) => {
     res.send('hi!');
 });
+
+
 
 // 회원 가입 api
 router.post('/register', async (req, res) => {
@@ -68,8 +75,10 @@ router.post('/register', async (req, res) => {
     await User.create({ email, nickname, password, admin });
 
     res.status(201).send({
-        success: true,
-        msg : "회원가입을축하합니다",
+        result: {
+            success: true,
+            msg : "회원가입을축하합니다",
+        }
     });
 });
 
@@ -89,9 +98,11 @@ router.post('/login', async (req, res) => {
 
     const token = jwt.sign({ userId: user.userId }, process.env.JWT_SECRET);
     res.cookie('user_cookie', token);
-    res.send({
-        success: true,
-        token,
+    res.status(201).send({
+        result: {
+            success: true,
+            token,
+        }
     });
 });
 
@@ -100,73 +111,114 @@ router.get("/post", async (req, res) => {
 
     try {
         console.log("게시글 전체 목록 조회 api");
-        const posts = await Posts.findAll({
+        const post_list = await Posts.findAll({
             order:[['createdAt', 'DESC']]
         });
-        res.send({ posts });
+        res.status(200).send({ 
+            result: {
+                post_list
+            }
+         });
     } catch(error) {
-        console.log(error);
+        return res.status(400).json({ error })
     }
 });
 
 // 게시글 작성 API
-router.post("/post", authMiddleware, async (req, res) => {
+router.post("/post", authMiddleware, upload.single("image"), async (req, res) => {
     try{
         console.log("게시판 작성 api");
-        // if(req.cookies.user_cookie) {
-        //     console.log("쿠기 있지롱");
-        // }
+
         const { userId } = res.locals.user;
         console.log(userId);
-        const { title, content, image, layout } = req.body;
+        const { title, content, layout } = req.body;
+        const { image } = req.file;
+        console.log("image", req.file.filename);
         // db 저장
-        await Posts.create({ title, content, image, userId, layout });
+        await Posts.create({ title, content, userId, layout, image: req.file.filename });
 
-        res.send({ msg: "게시글 작성이 완료되었습나다." });
+        res.status(201).send({ 
+            result: {
+                success: true,
+                msg: "게시글 작성이 완료되었습나다."
+
+            }
+        });
     } catch(error) {
-        console.log(error);
+        return res.status(400).json({ 
+            result: {
+                success: false,
+                error
+            }
+        });
     }
 });
 
 // 게시글 상세 조회 API
-router.get("/post/:postId", authMiddleware, async (req, res) => {
+router.get("/post/:postId", async (req, res) => {
+    console.log("게시글 상세 조회 api");
     const { postId } = req.params;
-    const { userId } = res.locals.user;
 
     const existsPost = await Posts.findOne({
         where: {
             postId,
-        },
+        }
     });
+
+    if(!existsPost) {
+        res.status(400).send({
+            success: false,
+            errormessage: "존재하지 않는 게시물입니다.",
+        });
+        return;
+    }
 
     const existsLike = await Like.findOne({
         where: {
-            userId,
             postId,
-        },
+            userId : existsPost.userId
+
+        }
     });
-
-    if(!existsLike) {
-        // 좋아요 초기값 저장
-        await Like.create({
-            userId,
-            postId,
-            done
-        });
-    }
-
+    
     const countLike = await Like.findAndCountAll({
         where: {
             postId
         }
     });
-    console.log(countLike);
 
-    res.send({
-        existsPost,
-        likeCount : countLike.count,
-        likeByMe : existsLike.done
-    });
+    // 유저 정보 
+    const existUser = await User.findOne({
+        where: { userId: existsPost.userId }
+    })
+
+    if (!existsLike) {
+        const likeByMe = false;
+        res.status(200).send({
+            result: {
+                likeByMe,
+                countLike: countLike.count,
+                title: existsPost.title,
+                content: existsPost.content,
+                image: existsPost.image,
+                userId: existUser.nickname,
+                postId: existsPost.postId,
+            }
+        })
+    } else {
+        res.status(200).send({
+            result: {
+                likeByMe: existsLike.done,
+                countLike: countLike.count,
+                title: existsPost.title,
+                content: existsPost.content,
+                image: existsPost.image,
+                userId: existUser.nickname,
+                postId: existsPost.postId,
+            }
+            
+        });
+    }
 
 });
 
@@ -174,72 +226,116 @@ router.get("/post/:postId", authMiddleware, async (req, res) => {
 
 
 // 게시글 수정 API
-router.put('/post/:postId', authMiddleware, async (req, res) => {
-    const { userId } = res.locals.user;
-    const { postId } = req.params;
-    const { title, content, imaage, layout } = req.body;
+router.put('/post/:postId', authMiddleware, upload.single("image"), async (req, res) => {
+    try {
+        console.log("게시글 수정 api");
+        const { userId } = res.locals.user;
+        const { postId } = req.params;
+        const { title, content, layout } = req.body;
+        const { image } = req.file;
 
-    const existsPost = await Posts.findOne({
-        where: {
-            postId,
-        },
-    });
+        const existsPost = await Posts.findOne({
+            where: {
+                postId,
+            },
+        });
 
-    // 게시글 작성자만 수정 할 수 있다
-    if(existsPost.userId != userId) {
-        res.send({
-            errorMessage: "게시글 작성자만 수정할 수 없습니다."
-        })
-        return;
+        // 게시글 작성자만 수정 할 수 있다
+        if(existsPost.userId != userId) {
+            res.send({
+                result: {
+                    success: false,
+                    errorMessage: "게시글 작성자만 수정할 수 없습니다."
+                }
+            })
+            return;
+        }
+
+        if (existsPost) {
+            // 파일 삭제
+            fs.unlinkSync("uploads/" + existsPost.image);
+            console.log("image delete", existsPost.image);
+            existsPost.title = title;
+            existsPost.content = content;
+            existsPost.image = req.file.filename;
+            existsPost.layout = layout;
+            await existsPost.save();   
+        } 
+
+        res.status(200).send({
+            result: {
+                success: true,
+            }
+        });
+    } catch(error) {
+        console.log(error);
     }
-
-    if (existsPost) {
-        existsPost.title = title;
-        existsPost.content = content;
-        existsPost.imaage = imaage;
-        existsPost.layout = layout;
-        await existsPost.save();
-    } 
-
-    res.send({
-        success: true
-    });
+    
 });
 
 // 게시글 삭제
 router.delete('/post/:postId', authMiddleware, async (req, res) => {
-    const { userId, admin } = res.locals.user;
-    console.log(admin);
-    const { postId } = req.params;
+    try {
+        console.log("게시글 삭제 api");
+        const { userId, admin } = res.locals.user;
+        console.log(admin);
+        const { postId } = req.params;
 
-    const existsPost = await Posts.findOne({
-        where: {
-            postId,
-        },
-    });
-
-    // 관리자 권한을 가진 사람만 삭제 할 수 있다.
-    if(admin == true) {
-        await existsPost.destroy();
-        res.send({
-            success: true
+        const existsPost = await Posts.findOne({
+            where: {
+                postId,
+            },
         });
-    }
 
-    // 게시글 작성자만 삭제 할 수 있다.
-    if(existsPost.userId != userId) {
-        res.send({
-            errorMessage: "게시글 작성자만 삭제할 수 없습니다."
-        })
-        return;
-    }
+        // const imageUrl = existsPost.image;
+        // 관리자 권한을 가진 사람만 삭제 할 수 있다.
+        if(admin == true) {
+            // try {
 
-    if (existsPost) {
-        await existsPost.destroy();
-        res.send({
-            success: true
-        });
+            //     console.log("여기");
+            //     fs.unlinkSync("/uploads" + imageUrl);
+            //     console.log("image delete");
+
+            // } catch(error) {
+            //     console.log(error);
+            // }
+            fs.unlinkSync("uploads/" + existsPost.image);
+            console.log("image delete");
+            await existsPost.destroy();
+            res.status(200).send({
+                result: {
+                    success: true,
+                }
+            });
+        }
+
+        // 게시글 작성자만 삭제 할 수 있다.
+        if(existsPost.userId != userId) {
+            res.status(200).send({
+                result: {
+                    success: false,
+                    errorMessage: "게시글 작성자만 삭제할 수 없습니다."
+                }
+                
+            })
+            return;
+        }
+
+        if (existsPost) {
+            await existsPost.destroy();
+            fs.unlinkSync("uploads/" + existsPost.image);
+            console.log("image delete");
+            res.status(200).send({
+                result: {
+                    success: true,
+                }
+                
+            });
+        }
+    } catch(error) {
+        console.log(error);
     }
+    
 });
 
 
@@ -274,15 +370,18 @@ router.get('/post/:postId/like', authMiddleware, async (req, res) => {
             done
         });
     }
-    res.send({
-        success: true
+    res.status(200).send({
+        result: {
+            success: true
+        }
+        
     });
 });
 
 
 
-
-
+app.use(cors());
+app.use(express.static('uploads'));
 app.use(morgan('dev'));
 app.use(express.json());
 app.use('/api', express.urlencoded({ extended: false }), router);
