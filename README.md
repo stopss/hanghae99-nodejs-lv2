@@ -26,15 +26,15 @@ RESTful한 API를 구현하는 근본적인 목적이 성능 향상에 있는 �
     5. 밑줄(_)은 사용하지 않고 하이픈(-)을 사용합니다.
     6. 확장자(txt, png 등)을 사용하지 않습니다.
     7. URL 마지막에 슬래시(/)를 포함하지 않습니다.  
- </br>
+ </br></br>
 
-* RESTful 장단점  </br></br>
 **장점** 
   * Easy to use  
     REST API 메시지를 읽는 것 만으로도 메시지가 의도하는 바를 명확하게 파악할 수 있습니다.  
   * Complete Seperation Between Client and Sever  
     서버와 클라이언트를 완전히 독립적으로 구현할 수 있습니다.  
   * Detail Expression for Specific Data Type  </br></br>
+
 **단점**  
   * Restriction of HTTP Method  
     행위에 대한 메소드가 제한적입니다.  
@@ -50,11 +50,6 @@ RESTful한 API를 구현하는 근본적인 목적이 성능 향상에 있는 �
 ### 3. node.js
 * 비동기 처리를 위해 무엇을 했나요?  
 자바스크립트와 노드에서는 비동기 처리는 콜백(callback) 함수로 해결 가능합니다. 이 때 함수의 매개 변수로 넘겨지는 콜백 함수가 반복되어 코드의 들여쓰기 수준이 감당하기 힘들 정도로 깊어지는 현상을 콜백 지옥(Callback Hell)이라 합니다. 콜백 지옥 현상을 극복하기 위해 프로미스(promise)가 등장하였지만 여전히 코드가 장황합니다. 그래서 async/await 문법을 통해 프로미스를 사용한 코드를 깔끔하게 줄여주었습니다.  
-</br>
-
-* 왜 Node에서 동기/비동기가 중요할까요?  
-Node는 이벤트 기반 방식으로 동작하므로 
-Node는 이벤트 기반으로 비동기 처리를 하였을 때 효과적입니다. 
 
 </br></br>
 
@@ -128,19 +123,10 @@ Node는 이벤트 기반으로 비동기 처리를 하였을 때 효과적입니
 
 </br></br>
 
-## 예외처리
-1. 회원가입 (/api/register, post)
-* 닉네임 형식 확인(최소 3자 이상, 알파벳 대소문자, 숫자로 구성)
-* 비밀번호와 비밀번호 확인이 일치하는지
-* 닉네임, 이메일 중복 확인
-* 비밀번호 정규식 확인(최소 4자 이상, 닉네임과 같은 값이 포함되지 않아야 함)  
-
-2. 게시글 작성 (/api/post, post)
-
-
-</br></br>
-
 ## Trouble Shooting
+이미지 파일의 이름을 데이터베이스에 저장하는 과정에서 문제가 발생했다. console.log를 이용하여 req.file.filename의 값이 존재하는 걸 확인했지만 데이터베이스의 유효성 검사에서 실패하였다.
+-> AllowNull: true로 변경한 후에 데이터베이스에 삽입이 가능해 졌다.
+<img width="390" alt="image" src="https://user-images.githubusercontent.com/33679560/174434263-596b5dfc-25fe-4731-89ff-076aad9d00dc.png">
 
 
 
